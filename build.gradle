@@ -1,0 +1,33 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "6.0.0"
+    id 'java'
+    id 'application'
+}
+
+sourceCompatibility = 11
+targetCompatibility = 11
+mainClassName = 'com.annimon.similarimagesbot.Main'
+group 'com.annimon'
+version '1.0.2'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation 'com.github.pengrad:java-telegram-bot-api:4.9.0'
+    implementation 'com.github.kilianB:JImageHash:3.0.0'
+    implementation 'com.h2database:h2:1.4.200'
+
+    implementation 'org.apache.logging.log4j:log4j-core:2.13.3'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.3'
+    implementation "com.fasterxml.jackson.module:jackson-module-kotlin:2.11.3"
+
+    testCompile 'junit:junit:4.12'
+}
+
+shadowJar {
+    mergeServiceFiles()
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+}
