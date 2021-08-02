@@ -1,7 +1,0 @@
-.gradle
-.build-cache
-.idea
-build
-README.md
-*.dat
-*.db
