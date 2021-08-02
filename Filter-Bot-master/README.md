@@ -1,604 +1,186 @@
-# Java Telegram Bot API
-[![Maven Central](https://img.shields.io/maven-central/v/com.github.pengrad/java-telegram-bot-api.svg)](https://search.maven.org/artifact/com.github.pengrad/java-telegram-bot-api)
-[![Build Status](https://travis-ci.org/pengrad/java-telegram-bot-api.svg?branch=master)](https://travis-ci.org/pengrad/java-telegram-bot-api)
-[![codecov](https://codecov.io/gh/pengrad/java-telegram-bot-api/branch/master/graph/badge.svg)](https://codecov.io/gh/pengrad/java-telegram-bot-api)
+<img align=left src = "https://user-images.githubusercontent.com/9025925/48595271-388ba280-e954-11e8-8bc6-8b8afe108682.png" />
 
-Java library for interacting with [Telegram Bot API](https://core.telegram.org/bots/api)
-- Full support of all Bot API 5.2 methods
-- Telegram [Passport](https://core.telegram.org/passport) and Decryption API
-- Bot [Payments](https://core.telegram.org/bots/payments)
-- [Gaming Platform](https://telegram.org/blog/games)
+# JImageHash
 
-## Download
+[![Travis](https://travis-ci.org/KilianB/JImageHash.svg?branch=master)](https://travis-ci.org/KilianB/JImageHash)
+[![GitHub license](https://img.shields.io/github/license/KilianB/JImageHash.svg)](https://github.com/KilianB/JImageHash/blob/master/LICENSE)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/3c7db745b9ff4dd9b89484a6aa46ad2f)](https://www.codacy.com/app/KilianB/JImageHash?utm_source=github.com&utm_medium=referral&utm_content=KilianB/JImageHash&utm_campaign=Badge_Grade)
 
-Gradle:
-```groovy
-implementation 'com.github.pengrad:java-telegram-bot-api:5.2.0'
-```
-Maven:
-```xml
+JImageHash is a performant perceptual image fingerprinting library entirely written in Java. The library returns a similarity score aiming to identify entities which are likely modifications of the original source while being robust various attack vectors ie. color, rotation and scale transformation.
+
+> A perceptual hash is a fingerprint of a multimedia file derived from various features from its content. Unlike cryptographic hash functions which rely on the avalanche effect of small changes in input leading to drastic changes in the output, perceptual hashes are "close" to one another if the features are similar.
+
+This library was inspired by _Dr. Neal Krawetz_ blog post "<a href="http://www.hackerfactor.com/blog/index.php?/archives/529-Kind-of-Like-That.html">kind of like that</a>" and incorporates several improvements. A comprehensive overview of perceptual image hashing can be found in this <a href="https://www.phash.org/docs/pubs/thesis_zauner.pdf">paper</a> by Christoph Zauner.
+
+
+
+## Maven
+
+The project is hosted on maven central
+
+```XML
 <dependency>
-  <groupId>com.github.pengrad</groupId>
-  <artifactId>java-telegram-bot-api</artifactId>
-  <version>5.2.0</version>
+	<groupId>dev.brachtendorf</groupId>
+	<artifactId>JImageHash</artifactId>
+	<version>1.0.0</version>
+</dependency>
+
+<!-- If you want to use the database image matcher you need to add h2 as well -->
+<dependency>
+	<groupId>com.h2database</groupId>
+	<artifactId>h2</artifactId>
+	<version>1.4.200</version>
 </dependency>
 ```
-[JAR with all dependencies on release page](https://github.com/pengrad/java-telegram-bot-api/releases)
 
-## Usage
-```java
-// Create your bot passing the token received from @BotFather
-TelegramBot bot = new TelegramBot("BOT_TOKEN");
+### Breaking Changes: migration guide to version 1.0.0
 
-// Register for updates
-bot.setUpdatesListener(updates -> {
-    // ... process updates
-    // return id of last processed update or confirm them all
-    return UpdatesListener.CONFIRMED_UPDATES_ALL;
-});
+**Please be aware that migrating from one major version to another usually invalidates created hashes in order to retain validity when persistently storing the hashes.**
+The algorithm id of hashes is adjusted in order for the jvm to throw an error if the possibility exist that hashes generated for the same input image are not consistent throughout the compared versions.
 
-// Send messages
-long chatId = update.message().chat().id();
-SendResponse response = bot.execute(new SendMessage(chatId, "Hello!"));
-```
+ Hashes generated with the following 2 algorithm have to be regenerated:
 
-## Documentation
-- [Creating your bot](#creating-your-bot)
-- [Making requests](#making-requests)
-- [Getting updates](#getting-updates)
-- [Available types](#available-types)
-- [Available methods](#available-methods)
-- [Updating messages](#updating-messages)
-- [Stickers](#stickers)
-- [Inline mode](#inline-mode)
-- [Payments](#payments)
-- [Telegram Passport](#telegram-passport)
-- [Games](#games)
+- RotPAverage hash was fixed to correctly return hashes when the algorithm is used multiple times.
+- KernelAverageHash algorithm id changed due to JVMs internal hashcode calculation and the package name update. Hashes generated with this algorithm have to be regenerated.
 
-### Creating your bot
+The package is now published to maven central under a new group id. The internal package structure has been adjusted from `com.github.kilianB` to `dev.brachtendorf.jimagehash`. Adjust your imports accordingly.
 
-```java
-TelegramBot bot = new TelegramBot("BOT_TOKEN");
-```
-Network operations based on [OkHttp](https://github.com/square/okhttp) library.  
-You can build bot with custom OkHttpClient, for specific timeouts or interceptors.
-```java
-TelegramBot bot = new TelegramBot.Builder("BOT_TOKEN").okHttpClient(client).build();
-```
 
-### Making requests
+## Hello World
 
-Synchronous
-```java
-BaseResponse response = bot.execute(request);
-```
+```Java
+File img0 = new File("path/to/file.png");
+File img1 = new File("path/to/secondFile.jpg");
 
-Asynchronous
-```java
-bot.execute(request, new Callback() {
-    @Override
-    public void onResponse(BaseRequest request, BaseResponse response) {
-    
-    }
-    @Override
-    public void onFailure(BaseRequest request, IOException e) {
-    
-    }
-});
-```
+HashingAlgorithm hasher = new PerceptiveHash(32);
 
-Request [in response to update](https://core.telegram.org/bots/faq#how-can-i-make-requests-in-response-to-updates)
-```java
-String response = request.toWebhookResponse();
-```
+Hash hash0 = hasher.hash(img0);
+Hash hash1 = hasher.hash(img1);
 
-### Getting updates
+double similarityScore = hash0.normalizedHammingDistance(hash1);
 
-You can use **getUpdates** request, parse incoming **Webhook** request, or set listener to receive updates.  
-Update object just copies Telegram's response.
+if(similarityScore < .2) {
+    //Considered a duplicate in this particular case
+}
 
-```java
-class Update {
-    Integer updateId();
-    Message message();
-    Message editedMessage();
-    InlineQuery inlineQuery();
-    ChosenInlineResult chosenInlineResult();
-    CallbackQuery callbackQuery();
+//Chaining multiple matcher for single image comparison
+
+SingleImageMatcher matcher = new SingleImageMatcher();
+matcher.addHashingAlgorithm(new AverageHash(64),.3);
+matcher.addHashingAlgorithm(new PerceptiveHash(32),.2);
+
+if(matcher.checkSimilarity(img0,img1)) {
+    //Considered a duplicate in this particular case
 }
 ```
 
-#### Get updates
+## Examples
 
-Building request
-```java
-GetUpdates getUpdates = new GetUpdates().limit(100).offset(0).timeout(0);
-```
+Examples and convenience methods can be found in the [examples repository](https://github.com/KilianB/JImageHash-Examples)
 
-The getUpdates method returns the earliest 100 unconfirmed updates. To confirm an update, use the offset parameter when calling getUpdates like this:
-`offset = updateId of last processed update + 1`  
-All updates with updateId less than offset will be marked as confirmed on the server and will no longer be returned.
+## Transparent image support
 
-Executing
-```java
-// sync
-GetUpdatesResponse updatesResponse = bot.execute(getUpdates);
-List<Update> updates = updatesResponse.updates();
-...
-Message message = update.message()
+Support for transparent images has to be enabled specifically due to backwards compatibility and force users of the libraries to understand the implication of this setting.
 
+The `setOpaqueHandling(Color? replacementColor, int alphaThreshold)` will replace transparent pixels with the specified color before calculating the hash.
 
-// async
-bot.execute(getUpdates, new Callback<GetUpdates, GetUpdatesResponse>() {
-    @Override
-    public void onResponse(GetUpdates request, GetUpdatesResponse response) {
-        List<Update> updates = response.updates();
-    }
-    
-    @Override
-    public void onFailure(GetUpdates request, IOException e) {
-    
-    }
-});
-```
+### Be aware of the following culprits: 
 
-#### Webhook
-
-Building request
-```java
-SetWebhook request = new SetWebhook()
-       .url("url")
-       .certificate(new byte[]{}) // byte[]
-       .certificate(new File("path")); // or file 
-```
-
-Executing
-```java
-// sync
-BaseResponse response = bot.execute(request);
-boolean ok = response.isOk();
-
-// async
-bot.execute(request, new Callback<SetWebhook, BaseResponse>() {
-    @Override
-    public void onResponse(SetWebhook request, BaseResponse response) {
-    
-    }
-    @Override
-    public void onFailure(SetWebhook request, IOException e) {
-        
-    }
-});
-```
-
-Using Webhook you can parse request to Update
-```java
-Update update = BotUtils.parseUpdate(stringRequest); // from String
-Update update = BotUtils.parseUpdate(reader); // or from java.io.Reader
-
-Message message = update.message();
-``` 
-
-#### Updates Listener
-
-You can set listener to receiving incoming updates as if using Webhook.  
-This will trigger executing getUpdates requests in a loop.
+- the replacement color must be consistent throughout hash calculation for the entire sample space to ensure robustness against color transformations of the images.
+- the replacement color should be a color that does not appear often in the input space to avoid masking out available information.
+- when not specified `Orange` will be used as replacement. This choice was arbitrary and ideally, a default color should be chosen which results in 0 and 1 bits being computed in 50% of the time in respect to all other pixels and hashing algorithms.
+- supplying a replacement value of null will attempt to either use black or white as a replacement color conflicting with the advice given above. Computing the contrast color will fail if the transparent area of an image covers a large space and comes with a steep performance penalty.
 
 ```java
-bot.setUpdatesListener(new UpdatesListener() {
-    @Override
-    public int process(List<Update> updates) {
+HashingAlgorithm hasher = new PerceptiveHash(32);
 
-        // process updates
+//Replace all pixels with alpha values smaller than 0-255. The alpha value cutoff is taken into account after down scaling the image, therefore choose a reasonable value.  
+int alphaThreshold = 253;
+hasher.setOpaqueHandling(alphaThreshold)
 
-        return UpdatesListener.CONFIRMED_UPDATES_ALL;
-    }
-});
 ```
 
-Listener should return id of the last processed (confirmed) update.  
-To confirm all updates return `UpdatesListener.CONFIRMED_UPDATES_ALL`, this should be enough in most cases.  
-To not confirm any updates return `UpdatesListener.CONFIRMED_UPDATES_NONE`, these updates will be redelivered.  
-To set specific update as last confirmed just return required updateId.
+## Multiple types image matchers are available for each situation
 
-To stop receiving updates
-```java
-bot.removeGetUpdatesListener();
-```
+The `persistent` package allows hashes and matchers to be saved to disk. In turn the images are not kept in memory and are only referenced by file path allowing to handle a great deal of images
+at the same time.
+The `cached` version keeps the BufferedImage image objects in memory allowing to change hashing algorithms on the fly and a direct retrieval of the buffered image objects of matching images.
+The `categorize` package contains image clustering matchers. KMeans and Categorical as well as weighted matchers.
+The `exotic` package features BloomFilter, and the SingleImageMatcher used to match 2 images without any fancy additions.
 
-### Available types
+<table>
+<tr> <th>Image</th>  <th></th> <th>High</th> <th>Low</th> <th>Copyright</th> <th>Thumbnail</th> <th>Ballon</th> </tr>
 
-All types have the same name as original ones.  
-Type's fields are methods in lowerCamelCase.
+<tr> <td>High Quality</td>  <td><img width= 75% src="https://user-images.githubusercontent.com/9025925/36542413-046d8116-17e1-11e8-93ed-210f65293d51.jpg"></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td> 
+</tr> 
+<tr> <td>Low Quality</td>  <td><img width= 75% src="https://user-images.githubusercontent.com/9025925/36542414-0498079c-17e1-11e8-9224-a9852797b96f.jpg"></td> 
+<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td>
+</tr>
 
-Types used in responses **(Update, Message, User, Document...)** are in `com.pengrad.telegrambot.model` package. 
+ <tr> <td>Altered Copyright</td>  <td><img width= 75% src="https://user-images.githubusercontent.com/9025925/36542411-0438eb36-17e1-11e8-9a59-2c69937560bf.jpg"> </td> 
+<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td>
+</tr>
 
-Types used in requests **(Keyboard, InlineQueryResult, ParseMode, InputMessageContent...)** are in `com.pengrad.telegrambot.model.request` package.  
-When creating request's type required params should be passed in constructor, optional params can be added in chains.
+<tr> <td>Thumbnail</td>  <td><img src="https://user-images.githubusercontent.com/9025925/36542415-04ca8078-17e1-11e8-9be4-9a90b08c404b.jpg"></td> 
+<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td>
+</tr> 
+	
+<tr> <td>Ballon</td>  <td><img width= 75% src="https://user-images.githubusercontent.com/9025925/36542417-04f3e6a2-17e1-11e8-91b2-50f9961524b4.jpg"></td> 
+<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/DC143C?text=+"/></p></td> 
+	<td><p align="center"><image src="https://via.placeholder.com/30/228B22?text=+"/></p></td>
+</tr> 
+	
+</table>
 
-#### Keyboards
+## Hashing algorithm
 
-ForceReply, ReplyKeyboardRemove
-```java
-Keyboard forceReply = new ForceReply(isSelective); // or just new ForceReply();
-Keyboard replyKeyboardRemove = new ReplyKeyboardRemove(); // new ReplyKeyboardRemove(isSelective)
-```
+Image matchers can be configured using different algorithm. Each comes with individual properties
 
-ReplyKeyboardMarkup
-```java
-Keyboard replyKeyboardMarkup = new ReplyKeyboardMarkup(
-                new String[]{"first row button1", "first row button2"},
-                new String[]{"second row button1", "second row button2"})
-                .oneTimeKeyboard(true)   // optional
-                .resizeKeyboard(true)    // optional
-                .selective(true);        // optional
-```
+<table>
+  <tr><th>Algorithm</th>  <th>Feature</th><th>Notes</th> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#averagehash-averagekernelhash-medianhash-averagecolorhash">AverageHash</a></td>  <td>Average Luminosity</td> <td>Fast and good all purpose algorithm</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#averagehash-averagekernelhash-medianhash-averagecolorhash">AverageColorHash</a></td>  <td>Average Color</td> <td>Version 1.x.x AHash. Usually worse off than AverageHash. Not robust against color changes</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#differencehash">DifferenceHash</a></td> <td>Gradient/Edge detection</td> <td>A bit more robust against hue/sat changes compared to AColorHash </td> </tr>
+  <tr><td>Wavelet Hash</td> <td>Frequency & Location</td> <td>Feature extracting by applying haar wavlets multiple times to the input image. Detection quality better than inbetween aHash and pHash.</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#perceptive-hash">PerceptiveHash</a></td> <td>Frequency</td> <td>Hash based on Discrete Cosine Transformation. Smaller hash distribution but best accuracy / bitResolution.</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#averagehash-averagekernelhash-medianhash-averagecolorhash">MedianHash</a></td> <td>Median Luminosity</td> <td>Identical to AHash but takes the median value into account. A bit better to detect watermarks but worse at scale transformation</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#averagehash-averagekernelhash-medianhash-averagecolorhash">AverageKernelHash</a></td>  <td>Average luminosity </td> <td>Same as AHash with kernel preprocessing. So far usually performs worse, but testing is not done yet.</td> </tr>
+  <tr><td colspan=3 align=center><b>Rotational Invariant</b></td></tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#rotphash">RotAverageHash</a></td>  <td>Average Luminosity</td> <td>Rotational robust version of AHash. Performs well but performance scales disastrous with higher bit resolutions . Conceptual issue: pixels further away from the center are weightend less.</td> </tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#rotphash">RotPHash</a></td> <td>Frequency</td> <td> Rotational invariant version of pHash using ring partition to map pixels in a circular fashion. Lower complexity for high bit sizes but due to sorting pixel values usually maps to a lower normalized distance. Usually bit res of >= 64bits are preferable</td> </tr>  
+   <tr><td colspan=3 align="center"><i><b>Experimental.</b> Hashes available but not well tuned and subject to changes</i></td></tr>
+  <tr><td><a href="https://github.com/KilianB/JImageHash/wiki/Hashing-Algorithms#hoghash">HogHash</a></td> <td>Angular Gradient based (detection of shapes?) </td> <td>A hashing algorithm based on hog feature detection which extracts gradients and pools them by angles. Usually used in support vector machine/NNs human outline detection. It's not entirely set how the feature vectors should be encoded. Currently average, but not great results, expensive to compute and requires a rather high bit resolution</td> </tr>  
+</table>
 
-KeyboardButton
-```java
-Keyboard keyboard = new ReplyKeyboardMarkup(
-        new KeyboardButton[]{
-                new KeyboardButton("text"),
-                new KeyboardButton("contact").requestContact(true),
-                new KeyboardButton("location").requestLocation(true)
-        }
-);                
-```
+### Version 3.0.0 Image clustering
 
-InlineKeyboardMarkup
-```java
-InlineKeyboardMarkup inlineKeyboard = new InlineKeyboardMarkup(
-        new InlineKeyboardButton[]{
-                new InlineKeyboardButton("url").url("www.google.com"),
-                new InlineKeyboardButton("callback_data").callbackData("callback_data"),
-                new InlineKeyboardButton("Switch!").switchInlineQuery("switch_inline_query")
-        });
-```
+Image clustering with fuzzy hashes allowing to represent hashes with probability bits instead of simple 0's and 1's
 
-#### Chat Action
-```java
-ChatAction action = ChatAction.typing;
-ChatAction action = ChatAction.upload_photo;
-ChatAction action = ChatAction.find_location;
-```
+![1_fxpw79yoon8xo3slqsvmta](https://user-images.githubusercontent.com/9025925/51272388-439d9600-19ca-11e9-8220-fe3539ed6061.png)
 
-### Available methods
+### Algorithm benchmarking
 
-All request methods have the same names as original ones.  
-Required params should be passed in constructor.  
-Optional params can be added in chains.
+See the wiki page on how to test different hashing algorithms with your set of images
+Code available at the example repo: https://github.com/KilianB/JImageHash-Examples/tree/main/src/main/java/com/github/kilianB/benchmark
 
-#### Send message 
-
-All send requests **(SendMessage, SendPhoto, SendLocation...)** return **SendResponse** object that contains **Message**.
-```java
-SendMessage request = new SendMessage(chatId, "text")
-        .parseMode(ParseMode.HTML)
-        .disableWebPagePreview(true)
-        .disableNotification(true)
-        .replyToMessageId(1)
-        .replyMarkup(new ForceReply());
-
-// sync
-SendResponse sendResponse = bot.execute(request);
-boolean ok = sendResponse.isOk();
-Message message = sendResponse.message();
-
-// async
-bot.execute(request, new Callback<SendMessage, SendResponse>() {
-    @Override
-    public void onResponse(SendMessage request, SendResponse response) {
-       
-    }
-    
-    @Override
-    public void onFailure(SendMessage request, IOException e) {
-    
-    }
-});
-```
-
-#### Formatting options
-```java
-ParseMode parseMode = ParseMode.Markdown;
-ParseMode parseMode = ParseMode.HTML;
-```
-
-#### Get file
-```java
-GetFile request = new GetFile("fileId")
-GetFileResponse getFileResponse = bot.execute(request);
-
-File file = getFileResponse.file(); // com.pengrad.telegrambot.model.File
-file.fileId();
-file.filePath();  // relative path
-file.fileSize();
-```
-To get downloading link as `https://api.telegram.org/file/bot<token>/<file_path>`
-```java
-String fullPath = bot.getFullFilePath(file);  // com.pengrad.telegrambot.model.File
-```
-
-#### Other requests
-
-All requests return BaseResponse if not mention here
-```java
-class BaseResponse {
-  boolean isOk();
-  int errorCode();
-  String description();
-}
-```
-
-GetMe request returns GetMeResponse  
-```java
-class GetMeResponse {
-  User user();
-}
-```
-
-GetChatAdministrators
-```java
-class GetChatAdministratorsResponse  { 
-  List<ChatMember> administrators() 
-}
-```
-
-GetChatMembersCount
-```java
-class GetChatMembersCountResponse  { 
-  int count() 
-}
-```
-
-GetChatMember
-```java
-class GetChatMemberResponse  {
-  ChatMember chatMember() 
-}
-```
-
-GetChat
-```java
-class GetChatResponse  { 
-  Chat chat() 
-}
-```
-
-GetUserProfilePhotos
-```java
-class GetUserProfilePhotosResponse {
-  UserProfilePhotos photos()
-}
-```
-
-StopPoll
-```java
-class PollResponse {
-  Poll poll()
-}
-```
-
-### Updating messages
-
-Normal message
-```java
-EditMessageText editMessageText = new EditMessageText(chatId, messageId, "new test")
-        .parseMode(ParseMode.HTML)
-        .disableWebPagePreview(true)
-        .replyMarkup(new ReplyKeyboardRemove());
-        
-BaseResponse response = bot.execute(editMessageText);        
-```
-
-Inline message
-```java
-EditMessageText editInlineMessageText = new EditMessageText(inlineMessageId, "new text");
-BaseResponse response = bot.execute(editInlineMessageText);
-```
-
-Delete message
-```java
-DeleteMessage deleteMessage = new DeleteMessage(chatId, messageId);
-BaseResponse response = bot.execute(deleteMessage);
-```
-
-### Stickers
-
-Send sticker
-```java
-// File or byte[] or string fileId of existing sticker or string URL
-SendSticker sendSticker = new SendSticker(chatId, imageFile);
-SendResponse response = bot.execute(sendSticker);
-```
-
-Get sticker set
-```java
-GetStickerSet getStickerSet = new GetStickerSet(stickerSet);
-GetStickerSetResponse response = bot.execute(getStickerSet);
-StickerSet stickerSet = response.stickerSet();
-```
-
-Upload sticker file
-```java
-// File or byte[] or string URL
-UploadStickerFile uploadStickerFile = new UploadStickerFile(chatId, stickerFile);
-GetFileResponse response = bot.execute(uploadStickerFile);
-```
-
-### Inline mode
-
-Getting updates
-```java
-GetUpdatesResponse updatesResponse = bot.execute(new GetUpdates());
-List<Update> updates = updatesResponse.updates();
-...
-InlineQuery inlineQuery = update.inlineQuery();
-ChosenInlineResult chosenInlineResult = update.chosenInlineResult();
-CallbackQuery callbackQuery = update.callbackQuery();
-```
-
-If using webhook, you can parse request to InlineQuery
-```java
-Update update = BotUtils.parseUpdate(stringRequest); // from String
-Update update = BotUtils.parseUpdate(reader); // from java.io.Reader
-
-InlineQuery inlineQuery = update.inlineQuery();
-```
-
-#### Inline query result
-```java
-InlineQueryResult r1 = new InlineQueryResultPhoto("id", "photoUrl", "thumbUrl");
-InlineQueryResult r2 = new InlineQueryResultArticle("id", "title", "message text").thumbUrl("url");
-InlineQueryResult r3 = new InlineQueryResultGif("id", "gifUrl", "thumbUrl");
-InlineQueryResult r4 = new InlineQueryResultMpeg4Gif("id", "mpeg4Url", "thumbUrl");
-
-InlineQueryResult r5 = new InlineQueryResultVideo(
-  "id", "videoUrl", InlineQueryResultVideo.MIME_VIDEO_MP4, "message", "thumbUrl", "video title")
-    .inputMessageContent(new InputLocationMessageContent(21.03f, 105.83f));
-```
-
-#### Answer inline query
-```java
-BaseResponse response = bot.execute(new AnswerInlineQuery(inlineQuery.id(), r1, r2, r3, r4, r5));
-
-// or full
-bot.execute(
-        new AnswerInlineQuery(inlineQuery.id(), new InlineQueryResult[]{r1, r2, r3, r4, r5})
-                .cacheTime(cacheTime)
-                .isPersonal(isPersonal)
-                .nextOffset("offset")
-                .switchPmParameter("pmParam")
-                .switchPmText("pmText")
-);
-```
-
-### Payments
-
-Send invoice
-```java
-SendInvoice sendInvoice = new SendInvoice(chatId, "title", "desc", "my_payload",
-        "providerToken", "my_start_param", "USD", new LabeledPrice("label", 200))
-        .needPhoneNumber(true)
-        .needShippingAddress(true)
-        .isFlexible(true)
-        .replyMarkup(new InlineKeyboardMarkup(new InlineKeyboardButton[]{
-                new InlineKeyboardButton("just pay").pay(),
-                new InlineKeyboardButton("google it").url("www.google.com")
-        }));
-SendResponse response = bot.execute(sendInvoice);
-```
-
-Answer shipping query
-```java
-LabeledPrice[] prices = new LabeledPrice[]{
-        new LabeledPrice("delivery", 100),
-        new LabeledPrice("tips", 50)
-};
-AnswerShippingQuery answerShippingQuery = new AnswerShippingQuery(shippingQueryId,
-        new ShippingOption("1", "VNPT", prices),
-        new ShippingOption("2", "FREE", new LabeledPrice("free delivery", 0))
-);
-BaseResponse response = bot.execute(answerShippingQuery);
-
-// answer with error
-AnswerShippingQuery answerShippingError = new AnswerShippingQuery(id, "Can't deliver here!");
-BaseResponse response = bot.execute(answerShippingError);
-```
-
-Answer pre-checkout query
-```java
-AnswerPreCheckoutQuery answerCheckout = new AnswerPreCheckoutQuery(preCheckoutQueryId);
-BaseResponse response = bot.execute(answerPreCheckoutQuery);
-
-// answer with error
-AnswerPreCheckoutQuery answerCheckout = new AnswerPreCheckoutQuery(id, "Sorry, item not available");
-BaseResponse response = bot.execute(answerPreCheckoutQuery);
-```
-
-### Telegram Passport
-
-When the user confirms your request by pressing the ‘Authorize’ button, the Bot API sends an Update with the field passport_data to the bot that contains encrypted Telegram Passport data. [Telegram Passport Manual](https://core.telegram.org/passport#receiving-information)
-
-#### Receiving information 
-You can get encrypted Passport data from Update (via UpdatesListener or Webhook)
-```java
-PassportData passportData = update.message().passportData();
-```
-PassportData contains array of `EncryptedPassportElement` and `EncryptedCredentials`.  
-You need to decrypt `Credentials` using private key (public key you uploaded to `@BotFather`)
-```java
-String privateKey = "...";
-EncryptedCredentials encryptedCredentials = passportData.credentials();
-Credentials credentials = encryptedCredentials.decrypt(privateKey);
-```
-These `Credentials` can be used to decrypt encrypted data in `EncryptedPassportElement`.
-```java
-EncryptedPassportElement[] encryptedPassportElements = passportData.data();
-for (EncryptedPassportElement element : encryptedPassportElements) {
-    DecryptedData decryptedData = element.decryptData(credentials);
-    // DecryptedData can be cast to specific type by checking instanceOf 
-    if (decryptedData instanceof PersonalDetails) {
-        PersonalDetails personalDetails = (PersonalDetails) decryptedData;
-    }
-    // Or by checking type of passport element
-    if (element.type() == EncryptedPassportElement.Type.address) {
-        ResidentialAddress address = (ResidentialAddress) decryptedData;
-    }
-}
-```
-`EncryptedPassportElement` also contains array of `PassportFile` (file uploaded to Telegram Passport).  
-You need to download them 1 by 1 and decrypt content.  
-This library supports downloading and decryption, returns decrypted byte[]
-```java
-EncryptedPassportElement element = ...
-
-// Combine all files 
-List<PassportFile> files = new ArrayList<PassportFile>();
-files.add(element.frontSide());
-files.add(element.reverseSide());
-files.add(element.selfie());
-if (element.files() != null) {
-    files.addAll(Arrays.asList(element.files()));
-}
-if (element.translation() != null) {
-    files.addAll(Arrays.asList(element.translation()));
-}
-
-// Decrypt
-for (PassportFile file : files) {
-    if (file == null) continue;
-    byte[] data = element.decryptFile(file, credentials, bot); // GetFile request and decrypt content
-    // save to file if needed
-    new FileOutputStream("files/" + element.type()).write(data);
-}
-```
-
-#### Set Passport data errors
-``` java
-SetPassportDataErrors setPassportDataErrors = new SetPassportDataErrors(chatId,
-        new PassportElementErrorDataField("personal_details", "first_name", "dataHash",
-                "Please enter a valid First name"),
-        new PassportElementErrorSelfie("driver_license", "fileHash",
-                "Can't see your face on photo")
-);
-bot.execute(setPassportDataErrors);
-```
-
-### Games
-
-Send game
-```java
-SendResponse response = bot.execute(new SendGame(chatId, "my_super_game"));
-```
-
-Set game score
-```java
-BaseResponse response = bot.execute(new SetGameScore(userId, score, chatId, messageId));
-```
-
-Get game high scores
-```java
-GetGameHighScoresResponse response = bot.execute(new GetGameHighScores(userId, chatId, messageId));
-GameHighScore[] scores = response.result();
-```
+<img src="https://user-images.githubusercontent.com/9025925/49185669-c14a0b80-f362-11e8-92fa-d51a20476937.jpg" />
